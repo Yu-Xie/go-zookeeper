@@ -192,10 +192,14 @@ func TestDNSHostOneHostDead(t *testing.T) {
 		return []string{"192.0.2.1", "192.0.2.2", "192.0.2.3"}, nil
 	}
 	hp.mu.Unlock()
+
 	time.Sleep(time.Millisecond * 5)
+
+	hp.mu.Lock()
 	if len(hp.servers) != 4 {
 		t.Fatal("Servers get back online should be added to the servers list")
 	}
+	hp.mu.Lock()
 }
 // TestDNSHostProviderRetryStart tests the `retryStart` functionality
 // of DNSHostProvider.
