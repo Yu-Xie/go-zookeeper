@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 )
+
+// lookupInterval is the interval of retrying DNS lookup for unresolved hosts
+const lookupInterval = time.Minute * 3
 
 // DNSHostProvider is the default HostProvider. It currently matches
 // the Java StaticHostProvider, resolving hosts from DNS once during
@@ -13,6 +17,7 @@ import (
 type DNSHostProvider struct {
 	mu         sync.Mutex // Protects everything, so we can add asynchronous updates later.
 	servers    []string
+	unresolvedServers map[string]struct{}
 	curr       int
 	last       int
 	lookupHost func(string) ([]string, error) // Override of net.LookupHost, for testing.
@@ -22,6 +27,43 @@ type DNSHostProvider struct {
 // string. It uses DNS to look up addresses for each server, then
 // shuffles them all together.
 func (hp *DNSHostProvider) Init(servers []string) error {
+	hp.servers = make([]string, 0, len(servers))
+	hp.unresolvedServers = make(map[string]struct{}, len(servers))
+	for _, server := range servers {
+		hp.unresolvedServers[server] = struct{}{}
+	}
+
+	done, err := hp.lookupUnresolvedServers()
+	if err != nil {
+		return err
+	}
+	// first lookup try resolves no hosts
+	if len(hp.servers) == 0 {
+		return fmt.Errorf("No hosts found for addresses %q", servers)
+	}
+	// as long as any host resolved successfully, consider the connection as success
+	// but start a lookup loop until all servers are resolved and added to servers list
+	if !done {
+		go hp.lookupLoop()
+	}
+
+	return nil
+}
+
+// lookupLoop calls lookupUnresolvedServers in an infinite loop until all hosts are resolved
+// should be called in a separate goroutine
+func (hp *DNSHostProvider) lookupLoop() {
+	for {
+		if done, _ := hp.lookupUnresolvedServers(); done {
+			break
+		}
+		time.Sleep(lookupInterval)
+	}
+}
+
+// lookupUnresolvedServers DNS lookup the hosts that not successfully resolved yet
+// and add them to servers list
+func (hp *DNSHostProvider) lookupUnresolvedServers() (bool, error) {
 	hp.mu.Lock()
 	defer hp.mu.Unlock()
 
@@ -30,33 +72,33 @@ func (hp *DNSHostProvider) Init(servers []string) error {
 		lookupHost = net.LookupHost
 	}
 
-	found := []string{}
-	for _, server := range servers {
+	if len(hp.unresolvedServers) == 0 {
+		return true, nil
+	}
+
+	found := make([]string, 0, len(hp.unresolvedServers))
+	for server := range hp.unresolvedServers {
 		host, port, err := net.SplitHostPort(server)
 		if err != nil {
-			return err
+			return false, err
 		}
 		addrs, err := lookupHost(host)
 		if err != nil {
-			return err
+			continue
 		}
+		delete(hp.unresolvedServers, server)
 		for _, addr := range addrs {
 			found = append(found, net.JoinHostPort(addr, port))
 		}
 	}
-
-	if len(found) == 0 {
-		return fmt.Errorf("No hosts found for addresses %q", servers)
-	}
-
 	// Randomize the order of the servers to avoid creating hotspots
 	stringShuffle(found)
 
-	hp.servers = found
+	hp.servers = append(hp.servers, found...)
 	hp.curr = -1
 	hp.last = -1
 
-	return nil
+	return false, nil
 }
 
 // Len returns the number of servers available
