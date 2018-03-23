@@ -15,13 +15,13 @@ const lookupInterval = time.Minute * 3
 // the call to Init.  It could be easily extended to re-query DNS
 // periodically or if there is trouble connecting.
 type DNSHostProvider struct {
-	mu         sync.Mutex // Protects everything, so we can add asynchronous updates later.
-	servers    []string
+	mu                sync.Mutex // Protects everything, so we can add asynchronous updates later.
+	servers           []string
 	unresolvedServers map[string]struct{}
-	curr       int
-	last       int
-	lookupHost func(string) ([]string, error) // Override of net.LookupHost, for testing.
-	sleep func(time.Duration) // Override of time.Sleep, for testing.
+	curr              int
+	last              int
+	lookupHost        func(string) ([]string, error) // Override of net.LookupHost, for testing.
+	sleep             func(time.Duration)            // Override of time.Sleep, for testing.
 }
 
 // Init is called first, with the servers specified in the connection

@@ -1,11 +1,11 @@
 package zk
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"testing"
 	"time"
-	"errors"
 )
 
 // localhostLookupHost is a test replacement for net.LookupHost that
@@ -201,6 +201,7 @@ func TestDNSHostOneHostDead(t *testing.T) {
 	}
 	hp.mu.Lock()
 }
+
 // TestDNSHostProviderRetryStart tests the `retryStart` functionality
 // of DNSHostProvider.
 // It's also probably the clearest visual explanation of exactly how
