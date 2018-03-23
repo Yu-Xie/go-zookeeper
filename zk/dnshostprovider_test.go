@@ -172,34 +172,32 @@ func TestDNSHostOneHostDead(t *testing.T) {
 		if host == "foo.failure.com" {
 			return nil, errors.New("Fails to ns lookup")
 		}
-		return []string{"192.0.2.1", "192.0.2.2", "192.0.2.3"}, nil
+		return []string{"192.0.2.1", "192.0.2.2"}, nil
 	}, sleep: func(_ time.Duration) {}}
 
 	if err := hp.Init([]string{"foo.failure.com:12345", "foo.success.com:12345"}); err != nil {
 		t.Fatal(err)
 	}
 
-	if len(hp.servers) != 3 {
-
+	hp.mu.Lock()
+	if len(hp.servers) != 2 {
 		t.Fatal("Only servers that resolved by lookupHost should be in servers list")
 	}
+	hp.mu.Unlock()
+	
 	// update lookupHost to mock a successful lookup
-	hp.mu.Lock()
 	hp.lookupHost = func(host string) ([]string, error) {
 		if host == "foo.failure.com" {
-			return []string{"192.0.2.4"}, nil
+			return []string{"192.0.2.3"}, nil
 		}
-		return []string{"192.0.2.1", "192.0.2.2", "192.0.2.3"}, nil
+		return []string{"192.0.2.1", "192.0.2.2"}, nil
 	}
-	hp.mu.Unlock()
-
 	time.Sleep(time.Millisecond * 5)
-
 	hp.mu.Lock()
-	if len(hp.servers) != 4 {
+	if len(hp.servers) != 3 {
 		t.Fatal("Servers get back online should be added to the servers list")
 	}
-	hp.mu.Lock()
+	hp.mu.Unlock()
 }
 
 // TestDNSHostProviderRetryStart tests the `retryStart` functionality
