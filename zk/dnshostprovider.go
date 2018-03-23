@@ -41,10 +41,7 @@ func (hp *DNSHostProvider) Init(servers []string) error {
 	if err != nil {
 		return err
 	}
-	// first lookup try resolves no hosts
-	if len(hp.servers) == 0 {
-		return fmt.Errorf("No hosts found for addresses %q", servers)
-	}
+
 	// as long as any host resolved successfully, consider the connection as success
 	// but start a lookup loop until all servers are resolved and added to servers list
 	if !done {
@@ -61,7 +58,7 @@ func (hp *DNSHostProvider) lookupLoop() {
 		if done, _ := hp.lookupUnresolvedServers(); done {
 			break
 		}
-		time.Sleep(lookupInterval)
+		hp.sleep(lookupInterval)
 	}
 }
 
@@ -101,6 +98,10 @@ func (hp *DNSHostProvider) lookupUnresolvedServers() (bool, error) {
 	hp.servers = append(hp.servers, found...)
 	hp.curr = -1
 	hp.last = -1
+
+	if len(hp.servers) == 0 {
+		return true, fmt.Errorf("No hosts found for addresses %q", hp.servers)
+	}
 
 	return false, nil
 }
